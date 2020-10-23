@@ -6,7 +6,7 @@ import subprocess
 
 
 # default parameters
-threads = 1
+threads2use = '6'
 
 def safeMkdir(dirName):
     work_dir = os.getcwd()
@@ -30,7 +30,7 @@ def main():
     processes = len(lreads_file)
     p = Pool(processes)
     for reads_file in lreads_file:
-        p.apply_async(runFastqc, args=(threads, reads_file, dpreQC_report))
+        p.apply_async(runFastqc, args=(threads2use, reads_file, dpreQC_report))
     print('Waiting for all subprocesses done...')
     p.close()
     p.join()

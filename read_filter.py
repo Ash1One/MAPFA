@@ -3,7 +3,7 @@ import subprocess
 from multiprocessing import Pool
 
 
-threads = '10'
+threads2use = '10'
 ref = 'ref.fa'
 
 
@@ -15,19 +15,19 @@ def runFastp(fq_R1, fq_R2):
     subprocess.run(cmd, shell=True, check=True)
 
 
-def rmHostGenome(ref, fq_R1, fq_R2, thread):
+def rmHostGenome(ref, fq_R1, fq_R2, threads):
     fq = fq_R1.split('.')[0][:-3]
     fq_qc_R1 = fq_R1.split('.')[0] + '.qc.fq'
     fq_qc_R2 = fq_R2.split('.')[0] + '.qc.fq'
     cmd_step1 = ' '.join(['bowtie2-build', ref, ref])
     cmd_step2 = ' '.join(['bowtie2', '-x', ref, '-1', fq_qc_R1,
-                          '-2', fq_qc_R2, '-S', fq+'.sam', '-p', thread])
+                          '-2', fq_qc_R2, '-S', fq+'.sam', '-p', threads])
     cmd_step3 = ' '.join(['samtools', 'view', '-bS', fq +
-                          '.sam', '>', fq+'.bam', '-@', thread])
+                          '.sam', '>', fq+'.bam', '-@', threads])
     cmd_step4 = ' '.join(['samtools', 'view', '-b', '-f', '12', '-F',
-                          '256', fq+'.bam', '>', fq+'.unmapped.bam', '-@', thread])
+                          '256', fq+'.bam', '>', fq+'.unmapped.bam', '-@', threads])
     cmd_step5 = ' '.join(['samtools', 'sort', '-n', '-o', fq +
-                          '.unmapped.sorted.bam', fq+'.unmapped.bam', '-@', thread])
+                          '.unmapped.sorted.bam', fq+'.unmapped.bam', '-@', threads])
     cmd_step6 = ' '.join(['bamToFastq', '-i', fq+'.unmapped.sorted.bam',
                           '-fq', fq+'_R1.hostRemoved.fq', '-fq2', fq+'_R2.hostRemoved.fq'])
     for cmd in [cmd_step1, cmd_step2, cmd_step3, cmd_step4, cmd_step5, cmd_step6]:
@@ -41,19 +41,17 @@ def main():
 
     parallel_task = int(len(fq_file)/2)
 
-    """
     p2fastp = Pool(parallel_task)
     for i in range(0, parallel_task, 2):
         p2fastp.apply_async(runFastp, args=(fq_file[i], fq_file[i+1]))
     p2fastp.close()
-    p2fastp.join()
-    """   
+    p2fastp.join()  
 
     ref_genome = ref
     p2rm = Pool(parallel_task)
     for i in range(0, parallel_task, 2):
         p2rm.apply_async(rmHostGenome, args=(
-            ref_genome, fq_file[i], fq_file[i+1], threads))
+            ref_genome, fq_file[i], fq_file[i+1], threads2use))
     p2rm.close()
     p2rm.join()
 
