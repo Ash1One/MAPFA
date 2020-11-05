@@ -15,3 +15,7 @@ def metaspades2assembly(threads, memory, outdir, fq_R1, fq_R2):
 def megahit2assembly(threads, fq_R1, fq_R2, outdir):
     cmd = ' '.join(['megahit', '-1', fq_R1, '-2', fq_R2, '-o', outdir, 't', threads, '-m', memory_gb+'000000000', '--continue'])
     subprocess.run(cmd, shell=True, check=True)
+
+def quast2QC(threads, outdir, fa_assembly):
+    cmd = ' '.join(['quast', '-t', threads, '-o', outdir, '-m', '500', fa_assembly])
+    subprocess.run(cmd, shell=True, check=True)
