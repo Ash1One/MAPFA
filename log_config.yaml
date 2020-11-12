@@ -6,7 +6,7 @@ formatters:
     format: "%(asctime)s - %(levelname)s - %(message)s"
 handlers:
   console:
-    class : logging.StreamHandler
+    class: logging.StreamHandler
     formatter: simple
     level: INFO
     stream: ext://sys.stdout
