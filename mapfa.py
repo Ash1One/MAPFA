@@ -13,6 +13,7 @@ import yaml
 import modules
 from modules.utils import getLogger
 from modules.utils import makesurePathExists
+from modules.utils import fileExists
 from version import __version__
 
 
@@ -68,18 +69,17 @@ def main(args=None):
 
     outdir = os.path.abspath(args.outdir)
     logger.info("MAPFA start:")
+    logging.info(' '.join(sys.argv))
     logger.info("The output directory: %s", outdir)
 
     if args.forward_raw_reads and args.reverse_raw_reads and args.index:
         logger.info("Run reads_QC module:")
-
         ##############################
         # Pre-QC
-        assert isinstance(args.forward_raw_reads, list), 'input reads were not put in a list'
         raw_fq_to_qc = args.forward_raw_reads + args.reverse_raw_reads
         preQC_report_outdir = os.path.join(outdir, 'preQC_report')
         makesurePathExists(preQC_report_outdir)
-        modules.read_QC.pool2runFastp(raw_fq_to_qc, preQC_report_outdir, args.threads, logger)
+        modules.read_QC.pool2runFastqc(raw_fq_to_qc, preQC_report_outdir, args.threads, logger)
         ##############################
 
         ##############################
@@ -88,11 +88,19 @@ def main(args=None):
         ## run fastp to cut low quality reads
         p2fastp = Pool(readFiltering_tasks)
         for file in args.forward_raw_reads:
-            p2fastp.apply_async(modules.read_QC.runFastp, args=(file, file.replace('_1', '_2')))
+            p2fastp.apply_async(modules.read_QC.runFastp, args=(file, file.replace('_1', '_2'), outdir))
         logger.info("Waiting for all subprocesses of fastp done...")
         p2fastp.close()
         p2fastp.join()
         logger.info("All subprocesses of fastp done.")
+        ### check fastp results
+        for raw_fq in raw_fq_to_qc:
+            if not fileExists(raw_fq.split('.')[0]+'.fastp.fq'):
+                logger.critical("Something wrong when running fastp to cut low quality reads")
+                return
+            else:
+                logger.info("fastp is working properly")
+                logger.info("continue")
         ## remove host genome contamination
         p2rmHG = Pool(readFiltering_tasks)
         for file in args.forward_raw_reads:
@@ -108,7 +116,7 @@ def main(args=None):
         fq_to_qc_again = [ i for i in os.listdir(outdir) if i.endswith('.qc.fq')]
         againQC_report_outdir = os.path.join(outdir, 'againQC_report')
         makesurePathExists(againQC_report_outdir)
-        modules.read_QC.pool2runFastp(fq_to_qc_again, againQC_report_outdir, args.threads, logger)
+        modules.read_QC.pool2runFastqc(fq_to_qc_again, againQC_report_outdir, args.threads, logger)
 
         ## multiqc
         subprocess.run(' '.join(['multiqc', preQC_report_outdir+'/*.zip', againQC_report_outdir+'/*.zip']), shell=True, check=True)
@@ -123,9 +131,13 @@ def main(args=None):
 
         ##############################
         # check results
-        if not sorted([ raw_fq.split('.')[0] for raw_fq in raw_fq_to_qc ]) == sorted([ qc_fq.split('.')[0] for qc_fq in fq_to_qc_again ]):
-            raise("Something wrong when running read_QC modules!")
-        logger.info("read_QC module running smoothly.")
+        for raw_fq in raw_fq_to_qc:
+            if not fileExists(raw_fq.split('.')[0]+'.qc.fq'):
+                logger.critical("Something wrong when removing Host Genome")
+                return
+            else:
+                logger.info("rmHostGenome is working properly")
+                logger.info("read_QC module running smoothly.")
         ##############################
 
     elif args.forward_clean_reads_to_assemble and args.reverse_clean_reads_to_assemble and args.assemblyer:
