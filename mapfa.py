@@ -23,40 +23,28 @@ def main(args=None):
 
     input reads should be named like read-a_1.fastq, read-a_2.fastq
     """
-    parser = argparse.ArgumentParser(
-        description="MAPFA: Metagenomic Analysis Pipeline for Food Animals", prog="mapfa")
-    parser.add_argument('-t', '--threads', type=int,
-                        default=1, help="number of threads")
-    parser.add_argument(
-        '-o', '--outdir', help='directory to write the result and log to', default=os.getcwd())
+    parser = argparse.ArgumentParser(description="MAPFA: Metagenomic Analysis Pipeline for Food Animals", prog="mapfa")
+    parser.add_argument('-t', '--threads', type=int, default=1, help="number of threads")
+    parser.add_argument('-o', '--outdir', help='directory to write the result and log to', default=os.getcwd())
     # True when triggering the action
-    parser.add_argument('--silent', help='Silent mode',
-                        action='store_true', default=False)
-    parser.add_argument('-v', '--version', action='version',
-                        version='%(prog)s ' + __version__)
+    parser.add_argument('--silent', help='Silent mode', action='store_true', default=False)
+    parser.add_argument('-v', '--version', action='version', version='%(prog)s ' + __version__)
 
     group_qc = parser.add_argument_group('read_QC module arguments')
-    group_qc.add_argument('-fr', '--forward_raw_reads',
-                          help="forward fastq raw reads", nargs='*')
-    group_qc.add_argument('-rr', '--reverse_raw_reads',
-                          help="reverse fastq raw reads", nargs='*')
+    group_qc.add_argument('-fr', '--forward_raw_reads', help="forward fastq raw reads", nargs='*')
+    group_qc.add_argument('-rr', '--reverse_raw_reads', help="reverse fastq raw reads", nargs='*')
     group_qc.add_argument('-i', '--index', help="index of the host genome")
 
     group_assembly = parser.add_argument_group('assembly module arguments')
-    group_assembly.add_argument(
-        '-fa', '--forward_clean_reads_to_assemble', help="forward fastq clean reads to assemble", nargs='*')
-    group_assembly.add_argument(
-        '-ra', '--reverse_clean_reads_to_assemble', help="reverse fastq clean reads to assemble", nargs='*')
-    group_assembly.add_argument(
-        '--assemblyer', help="choose a assemblyer to assemble (metaspades or megahit). Default: megahit.", default='megahit')
+    group_assembly.add_argument('-fa', '--forward_clean_reads_to_assemble', help="forward fastq clean reads to assemble", nargs='*')
+    group_assembly.add_argument('-ra', '--reverse_clean_reads_to_assemble', help="reverse fastq clean reads to assemble", nargs='*')
+    group_assembly.add_argument('-m', '--memory', help="memory (gigabyte) to assemble", type=int, default=200)
+    group_assembly.add_argument('--assemblyer', help="choose a assemblyer to assemble (metaspades or megahit). Default: megahit.", default='megahit')
 
     group_binning = parser.add_argument_group('binning module arguments')
-    group_binning.add_argument(
-        '-fb', '--forward_clean_reads_to_binning', help="forward fastq clean reads", nargs='*')
-    group_binning.add_argument(
-        '-rb', '--reverse_clean_reads_to_binning', help="forward fastq clean reads", nargs='*')
-    group_binning.add_argument(
-        '-a', '--assembled_reads', help="assembled fasta reads")
+    group_binning.add_argument('-fb', '--forward_clean_reads_to_binning', help="forward fastq clean reads", nargs='*')
+    group_binning.add_argument('-rb', '--reverse_clean_reads_to_binning', help="forward fastq clean reads", nargs='*')
+    group_binning.add_argument('-a', '--assembled_reads', help="assembled fasta reads")
 
     args = parser.parse_args(args)
     print(args)
@@ -71,7 +59,8 @@ def main(args=None):
     logger.info("MAPFA start:")
     logging.info(' '.join(sys.argv))
     logger.info("The output directory: %s", outdir)
-
+    ##################################
+    # read QC
     if args.forward_raw_reads and args.reverse_raw_reads and args.index:
         logger.info("Run reads_QC module:")
         ##############################
@@ -139,10 +128,24 @@ def main(args=None):
                 logger.info("rmHostGenome is working properly")
                 logger.info("read_QC module running smoothly.")
         ##############################
-
+    ##################################
+    ##################################
+    # assembly
     elif args.forward_clean_reads_to_assemble and args.reverse_clean_reads_to_assemble and args.assemblyer:
         logger.info("Run assembly module:")
         logger.info("choose %s to assemble clean reads", args.assemblyer)
+        assembly_outdir = os.path.join(outdir, 'assembly_out')
+        makesurePathExists(assembly_outdir)
+        fq_1_qc = [ fq1.replace('fastq', 'qc.fq') for fq1 in args.forward_raw_reads ]
+        fq_2_qc = [ fq2.replace('fastq', 'qc.fq') for fq2 in args.reverse_raw_reads ]
+        if args.assemblyer == 'metaspades':
+            modules.assembly.metaspades2assembly(str(args.threads), str(args.memory), assembly_outdir, ' '.join(fq_1_qc), ' '.join(fq_2_qc))
+        elif args.assemblyer == 'megahit':
+            modules.assembly.megahit2assembly(str(args.threads), str(args.memory), assembly_outdir, ' '.join(fq_1_qc), ' '.join(fq_2_qc))
+        else:
+            logger.critical("please choose metaspades or megahit.")
+            return
+
     elif args.forward_clean_reads_to_binning and args.reverse_clean_reads_to_binning and args.assembled_reads:
         logger.info("Run binning module:")
 
