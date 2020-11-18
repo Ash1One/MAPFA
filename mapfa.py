@@ -43,40 +43,47 @@ def main(args=None):
                         action='store_true', default=False)
     parser.add_argument('-v', '--version', action='version',
                         version='%(prog)s ' + __version__)
-
+    # QC group
     group_qc = parser.add_argument_group('read_QC module arguments')
     group_qc.add_argument('-fr', '--forward_raw_reads',
                           help="forward fastq raw reads", nargs='*')
     group_qc.add_argument('-rr', '--reverse_raw_reads',
                           help="reverse fastq raw reads", nargs='*')
     group_qc.add_argument('-i', '--index', help="index of the host genome")
-
+    # assembly group
     group_assembly = parser.add_argument_group('assembly module arguments')
     group_assembly.add_argument('-fa', '--forward_clean_reads_to_assemble',
                                 help="forward fastq clean reads to assemble", nargs='*')
     group_assembly.add_argument('-ra', '--reverse_clean_reads_to_assemble',
                                 help="reverse fastq clean reads to assemble", nargs='*')
     group_assembly.add_argument(
-        '-m', '--memory', help="memory (gigabyte) to assemble", type=int, default=30)
-    group_assembly.add_argument('-l', '--minlength', help="keep long contigs over minlength. Default: 500 (bp).", default=500)
+        '-ma', '--memory4assemble', help="memory (gigabyte) for assembling. Default: 30 (GB)", type=int, default=30)
+    group_assembly.add_argument('-la', '--minlength4a', help="keep long contigs over minlength. Default: 500 (bp).", default=500)
     group_assembly.add_argument(
         '--assemblyer', help="choose a assemblyer to assemble (metaspades or megahit). Default: megahit.", default='megahit')
-
+    # binning group
     group_binning = parser.add_argument_group('binning module arguments')
     group_binning.add_argument(
         '-fb', '--forward_clean_reads_to_binning', help="forward fastq clean reads", nargs='*')
     group_binning.add_argument(
         '-rb', '--reverse_clean_reads_to_binning', help="forward fastq clean reads", nargs='*')
+    group_binning.add_argument('-mb', '--memory4binning', help="memory (gigabyte) for binning. Default: 30 (GB).", default=30)
+    group_binning.add_argument('-lb', '--minlength4b', help="contigs with minimum length to bin. Default: 1000 (bp).", default=1000)
     group_binning.add_argument(
         '-a', '--assembled_reads', help="assembled fasta reads")
+    group_binning.add_argument('--metabat2', help="metabat2 to bin contigs", action="store_true", default=False)
+    group_binning.add_argument('--maxbin2', help="maxbin2 to bin contigs", action="store_true", default=False)
+    group_binning.add_argument('--groopm2', help="groopm2 to bin contigs", action="store_true", default=False)
+    group_binning.add_argument('--concoct', help="concoct to bin contigs", action="store_true", default=False)
+    #group_binning.add_argument('--vamb', help="vamb to bin contigs", action="store_true", default=False)
 
+    if len(sys.argv) == 1:
+        parser.print_help()
+        return
     args = parser.parse_args(args)
     print(args)
 
     # load log config
-    with open('log_config.yaml', 'r', encoding='utf-8') as f:
-        log_config = yaml.safe_load(f)
-        logging.config.dictConfig(log_config)
     logger = getLogger(args.outdir, args.silent)
 
     outdir = os.path.abspath(args.outdir)
@@ -93,7 +100,7 @@ def main(args=None):
         preQC_report_outdir = os.path.join(outdir, 'preQC_report')
         makesurePathExists(preQC_report_outdir)
         pool2runFastqc(
-            raw_fq_to_qc, preQC_report_outdir, args.threads, logger)
+            raw_fq_to_qc, preQC_report_outdir, args.threads)
         ##############################
 
         ##############################
@@ -137,7 +144,7 @@ def main(args=None):
         againQC_report_outdir = os.path.join(outdir, 'againQC_report')
         makesurePathExists(againQC_report_outdir)
         pool2runFastqc(
-            fq_to_qc_again, againQC_report_outdir, args.threads, logger)
+            fq_to_qc_again, againQC_report_outdir, args.threads)
 
         # multiqc
         subprocess.run(' '.join(['multiqc', preQC_report_outdir+'/*.zip',
@@ -146,7 +153,7 @@ def main(args=None):
 
         ##############################
         # clean temp files
-        cleaned_file = cleanTemp(outdir, logger)
+        cleaned_file = cleanTemp(outdir)
         for file in cleaned_file:
             logger.info("clean temp files -- %s was removed.", file)
         ##############################
@@ -187,10 +194,10 @@ def main(args=None):
             if fileExists(os.path.join(metaspades_outdir, 'spades.log')):
                 logger.info("metaspades restart from last running.")
                 metaspades2assembly(1, str(args.threads), str(
-                    args.memory), metaspades_outdir, metaspades_temp, ' '.join(fq_1_qc), ' '.join(fq_2_qc))
+                    args.memory4assemble), metaspades_outdir, metaspades_temp, ' '.join(fq_1_qc), ' '.join(fq_2_qc))
             else:
                 metaspades2assembly(0, str(args.threads), str(
-                    args.memory), metaspades_outdir, metaspades_temp, ' '.join(fq_1_qc), ' '.join(fq_2_qc))
+                    args.memory4assemble), metaspades_outdir, metaspades_temp, ' '.join(fq_1_qc), ' '.join(fq_2_qc))
             ## check the result        
             if not fileExists(os.path.join(metaspades_outdir, 'scaffolds.fasta')):
                 logger.critical("Something wrong when assembling with metaspades!")
@@ -213,7 +220,7 @@ def main(args=None):
             makesurePathExists(megahit_temp)
             logger.info("Assembling with megahit:")
             megahit2assembly(str(args.threads), str(
-                args.memory), megahit_outdir, megahit_temp, ' '.join(fq_1_qc), ' '.join(fq_2_qc))
+                args.memory4assemble), megahit_outdir, megahit_temp, ' '.join(fq_1_qc), ' '.join(fq_2_qc))
 
             ## check the result
             if not fileExists(os.path.join(megahit_outdir, 'final.contigs.fa')):
@@ -235,9 +242,9 @@ def main(args=None):
 
         # FORMAT the result
         if args.assemblyer == 'metaspades':
-            rmMetaspadesShortContigs(args.minlength, assembled_path)
+            rmMetaspadesShortContigs(args.minlength4a, assembled_path)
         elif args.assemblyer == 'megahit':
-            fixMegahitContigName(args.minlength, assembled_path)
+            fixMegahitContigName(args.minlength4a, assembled_path)
         
         # check the result
         if not fileExists(os.path.join(outdir, 'assembly.fasta')):
@@ -261,7 +268,16 @@ def main(args=None):
         logger.info("assembly module running smoothly.")
 
     elif args.forward_clean_reads_to_binning and args.reverse_clean_reads_to_binning and args.assembled_reads:
+        if not (args.metabat2 or args.maxbin2 or args.groopm2 or args.concoct):
+            logger.error("please select at least one binning tool. e.g. --metabat2")
+            return
+        
+
         logger.info("Run binning module:")
+
+    else:
+        logger.warning("Please choose a module for MAPFA.")
+        return
 
     logger.info("MAPFA end.")
 

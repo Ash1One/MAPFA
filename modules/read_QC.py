@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import logging
 import os
 import re
 import subprocess
@@ -9,14 +10,15 @@ from pathlib import Path
 from pathlib import PurePosixPath
 
 
-def pool2runFastqc(fq_to_qc, report_outdir, threads, logger2log):
+def pool2runFastqc(fq_to_qc, report_outdir, threads):
     p = Pool(len(fq_to_qc))
     for fq in fq_to_qc:
         p.apply_async(runFastqc, args=(threads, fq, report_outdir))
-    logger2log.info("Waiting for all subprocesses of fastqc done...")
+    logger = logging.getLogger('mapfa')
+    logger.info("Waiting for all subprocesses of fastqc done...")
     p.close()
     p.join()
-    logger2log.info("All subprocesses of fastqc done.")
+    logger.info("All subprocesses of fastqc done.")
 
 
 def runFastqc(threads, fastqFile, outdir):
@@ -45,7 +47,7 @@ def rmHostGenome(ref, fq_R1, fq_R2, threads):
         subprocess.run(cmd, check=True, shell=True)
 
 
-def cleanTemp(work_dir, logger):
+def cleanTemp(work_dir):
     '''delete fastp.html, fastp.json, *.bam, *.sam, preQC_report(direc), againQC_report(direc)
     '''
 
@@ -60,6 +62,7 @@ def cleanTemp(work_dir, logger):
             logger.error("clean temp files -- There are something wrong when cleaning temp files", exc_info=True)
             raise
     '''
+
     cleaned_files = []
     # Path.glob - Python >= 3.5
     p = Path(work_dir)
@@ -81,7 +84,6 @@ def cleanTemp(work_dir, logger):
             os.remove(os.path.join(dirpath, file))
             cleaned_files.append(os.path.join(dirpath, file))
         os.rmdir(dirpath)
-    logger.info("clean temp files -- preQC_report directory was deleted.")
 
     for dirpath, dirname, filename in os.walk(os.path.join(work_dir, 'againQC_report'), topdown=False):
         # shutil.rmtree(os.path.join(root)) 一步到位

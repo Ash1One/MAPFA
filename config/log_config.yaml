@@ -14,11 +14,12 @@ handlers:
     class: logging.FileHandler
     formatter: more
     level: DEBUG
+    #filename: !!python/name:os.getcwd
     filename: log.txt
 loggers:
   silentlogger:
     level: DEBUG
     handlers: [file]
-  root:
+  mapfa:
     level: DEBUG
     handlers: [console, file]
