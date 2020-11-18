@@ -10,19 +10,7 @@ import sys
 from multiprocessing import Pool
 
 import yaml
-
-from modules.read_QC import pool2runFastqc
-from modules.read_QC import runFastp
-from modules.read_QC import rmHostGenome
-from modules.read_QC import cleanTemp
-from modules.assembly import rmMetaspadesShortContigs
-from modules.assembly import fixMegahitContigName
-from modules.assembly import metaspades2assembly
-from modules.assembly import megahit2assembly
-from modules.assembly import quast2QC
-from modules.utils import getLogger
-from modules.utils import makesurePathExists
-from modules.utils import fileExists
+import modules
 from version import __version__
 
 
@@ -84,7 +72,7 @@ def main(args=None):
     print(args)
 
     # load log config
-    logger = getLogger(args.outdir, args.silent)
+    logger = modules.getLogger(args.outdir, args.silent)
 
     outdir = os.path.abspath(args.outdir)
     logger.info("MAPFA start:")
@@ -98,8 +86,8 @@ def main(args=None):
         # Pre-QC
         raw_fq_to_qc = args.forward_raw_reads + args.reverse_raw_reads
         preQC_report_outdir = os.path.join(outdir, 'preQC_report')
-        makesurePathExists(preQC_report_outdir)
-        pool2runFastqc(
+        modules.makesurePathExists(preQC_report_outdir)
+        modules.pool2runFastqc(
             raw_fq_to_qc, preQC_report_outdir, args.threads)
         ##############################
 
@@ -109,7 +97,7 @@ def main(args=None):
         # run fastp to cut low quality reads
         p2fastp = Pool(readFiltering_tasks)
         for file in args.forward_raw_reads:
-            p2fastp.apply_async(runFastp, args=(
+            p2fastp.apply_async(modules.runFastp, args=(
                 file, file.replace('_1', '_2'), outdir))
         logger.info("Waiting for all subprocesses of fastp done...")
         p2fastp.close()
@@ -117,7 +105,7 @@ def main(args=None):
         logger.info("All subprocesses of fastp done.")
         # check fastp results
         for raw_fq in raw_fq_to_qc:
-            if not fileExists(raw_fq.split('.')[0]+'.fastp.fq'):
+            if not modules.fileExists(raw_fq.split('.')[0]+'.fastp.fq'):
                 logger.critical(
                     "Something wrong when running fastp to cut low quality reads")
                 return
@@ -127,7 +115,7 @@ def main(args=None):
         # remove host genome contamination
         p2rmHG = Pool(readFiltering_tasks)
         for file in args.forward_raw_reads:
-            p2rmHG.apply_async(rmHostGenome, args=(
+            p2rmHG.apply_async(modules.rmHostGenome, args=(
                 args.index, file, file.replace('_1', '_2'), str(args.threads)))
         logger.info(
             "Waiting for all subprocesses of removing host genome contamination done...")
@@ -142,8 +130,8 @@ def main(args=None):
         fq_to_qc_again = [i for i in os.listdir(
             outdir) if i.endswith('.qc.fq')]
         againQC_report_outdir = os.path.join(outdir, 'againQC_report')
-        makesurePathExists(againQC_report_outdir)
-        pool2runFastqc(
+        modules.makesurePathExists(againQC_report_outdir)
+        modules.pool2runFastqc(
             fq_to_qc_again, againQC_report_outdir, args.threads)
 
         # multiqc
@@ -153,7 +141,7 @@ def main(args=None):
 
         ##############################
         # clean temp files
-        cleaned_file = cleanTemp(outdir)
+        cleaned_file = modules.cleanTemp(outdir)
         for file in cleaned_file:
             logger.info("clean temp files -- %s was removed.", file)
         ##############################
@@ -161,7 +149,7 @@ def main(args=None):
         ##############################
         # check results
         for raw_fq in raw_fq_to_qc:
-            if not fileExists(raw_fq.split('.')[0]+'.qc.fq'):
+            if not modules.fileExists(raw_fq.split('.')[0]+'.qc.fq'):
                 logger.critical("Something wrong when removing Host Genome")
                 return
             else:
@@ -184,22 +172,22 @@ def main(args=None):
         if args.assemblyer == 'metaspades':
             metaspades_outdir = os.path.join(outdir, 'metaspades_out')
             metaspades_temp = os.path.join(outdir, 'metaspades_temp')
-            makesurePathExists(metaspades_outdir)
-            makesurePathExists(metaspades_temp)
+            modules.makesurePathExists(metaspades_outdir)
+            modules.makesurePathExists(metaspades_temp)
 
             logger.info("Assembling with metaspades:")
             logger.info("%s and %s are used for assembling.",
                         ','.join(fq_1_qc), ','.join(fq_2_qc))
 
-            if fileExists(os.path.join(metaspades_outdir, 'spades.log')):
+            if modules.fileExists(os.path.join(metaspades_outdir, 'spades.log')):
                 logger.info("metaspades restart from last running.")
-                metaspades2assembly(1, str(args.threads), str(
+                modules.metaspades2assembly(1, str(args.threads), str(
                     args.memory4assemble), metaspades_outdir, metaspades_temp, ' '.join(fq_1_qc), ' '.join(fq_2_qc))
             else:
-                metaspades2assembly(0, str(args.threads), str(
+                modules.metaspades2assembly(0, str(args.threads), str(
                     args.memory4assemble), metaspades_outdir, metaspades_temp, ' '.join(fq_1_qc), ' '.join(fq_2_qc))
             ## check the result        
-            if not fileExists(os.path.join(metaspades_outdir, 'scaffolds.fasta')):
+            if not modules.fileExists(os.path.join(metaspades_outdir, 'scaffolds.fasta')):
                 logger.critical("Something wrong when assembling with metaspades!")
                 return
             else:
@@ -216,14 +204,14 @@ def main(args=None):
         elif args.assemblyer == 'megahit':
             megahit_outdir = os.path.join(outdir, 'megahit_out')
             megahit_temp = os.path.join(outdir, 'megahit_temp')
-            makesurePathExists(megahit_outdir)
-            makesurePathExists(megahit_temp)
+            modules.makesurePathExists(megahit_outdir)
+            modules.makesurePathExists(megahit_temp)
             logger.info("Assembling with megahit:")
-            megahit2assembly(str(args.threads), str(
+            modules.megahit2assembly(str(args.threads), str(
                 args.memory4assemble), megahit_outdir, megahit_temp, ' '.join(fq_1_qc), ' '.join(fq_2_qc))
 
             ## check the result
-            if not fileExists(os.path.join(megahit_outdir, 'final.contigs.fa')):
+            if not modules.fileExists(os.path.join(megahit_outdir, 'final.contigs.fa')):
                 logger.critical("Something wrong when assembling with megahit!")
                 return
             else:
@@ -242,12 +230,12 @@ def main(args=None):
 
         # FORMAT the result
         if args.assemblyer == 'metaspades':
-            rmMetaspadesShortContigs(args.minlength4a, assembled_path)
+            modules.rmMetaspadesShortContigs(args.minlength4a, assembled_path)
         elif args.assemblyer == 'megahit':
-            fixMegahitContigName(args.minlength4a, assembled_path)
+            modules.fixMegahitContigName(args.minlength4a, assembled_path)
         
         # check the result
-        if not fileExists(os.path.join(outdir, 'assembly.fasta')):
+        if not modules.fileExists(os.path.join(outdir, 'assembly.fasta')):
             logger.critical("Something wrong when removing short contigs")
             return
         else:
@@ -256,9 +244,9 @@ def main(args=None):
         # assembly QC with QUAST
         logger.info("Running assembly QC with quast:")
         quast_outdir = os.path.join(outdir, 'quast_out')
-        makesurePathExists(quast_outdir)
-        quast2QC(args.threads, quast_outdir, os.path.join(outdir, 'assembly.fasta'))
-        if not fileExists(os.path.join(quast_outdir, 'report.html')):
+        modules.makesurePathExists(quast_outdir)
+        modules.quast2QC(args.threads, quast_outdir, os.path.join(outdir, 'assembly.fasta'))
+        if not modules.fileExists(os.path.join(quast_outdir, 'report.html')):
             logger.critical("Something wrong when assembly QC with quast!")
             return
         else:
@@ -271,6 +259,8 @@ def main(args=None):
         if not (args.metabat2 or args.maxbin2 or args.groopm2 or args.concoct):
             logger.error("please select at least one binning tool. e.g. --metabat2")
             return
+        if args.metabat2 == True:
+            modules.metabat2bin()
         
 
         logger.info("Run binning module:")
