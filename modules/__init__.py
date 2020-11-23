@@ -11,3 +11,6 @@ from modules.utils import getLogger
 from modules.utils import makesurePathExists
 from modules.utils import fileExists
 from modules.binning import metabat2bin
+from modules.binning import maxbin2bin
+from modules.binning import groopm2bin
+from modules.binning import concoct2bin
