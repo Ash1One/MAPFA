@@ -46,7 +46,8 @@ def main(args=None):
                                 help="reverse fastq clean reads to assemble", nargs='*')
     group_assembly.add_argument(
         '-ma', '--memory4assemble', help="memory (gigabyte) for assembling. Default: 30 (GB)", type=int, default=30)
-    group_assembly.add_argument('-la', '--minlength4a', help="keep long contigs over minlength. Default: 500 (bp).", default=500)
+    group_assembly.add_argument(
+        '-la', '--minlength4a', help="keep long contigs over minlength. Default: 500 (bp).", default=500)
     group_assembly.add_argument(
         '--assemblyer', help="choose a assemblyer to assemble (metaspades or megahit). Default: megahit.", default='megahit')
     # binning group
@@ -55,15 +56,21 @@ def main(args=None):
         '-fb', '--forward_clean_reads_to_binning', help="forward fastq clean reads", nargs='*')
     group_binning.add_argument(
         '-rb', '--reverse_clean_reads_to_binning', help="forward fastq clean reads", nargs='*')
-    group_binning.add_argument('-mb', '--memory4binning', help="memory (gigabyte) for binning. Default: 30 (GB).", default=30)
-    group_binning.add_argument('-lb', '--minlength4b', help="contigs with minimum length to bin. Default: 1000 (bp).", default=1000)
     group_binning.add_argument(
-        '-a', '--assembled_reads', help="assembled fasta reads")
-    group_binning.add_argument('--metabat2', help="metabat2 to bin contigs", action="store_true", default=False)
-    group_binning.add_argument('--maxbin2', help="maxbin2 to bin contigs", action="store_true", default=False)
-    group_binning.add_argument('--groopm2', help="groopm2 to bin contigs", action="store_true", default=False)
-    group_binning.add_argument('--concoct', help="concoct to bin contigs", action="store_true", default=False)
-    #group_binning.add_argument('--vamb', help="vamb to bin contigs", action="store_true", default=False)
+        '-mb', '--memory4binning', help="memory (gigabyte) for binning. Default: 30 (GB).", default=30)
+    group_binning.add_argument(
+        '-lb', '--minlength4b', help="contigs with minimum length to bin. Default: 1000 (bp).", default=1000)
+    group_binning.add_argument(
+        '-a', '--assembled_contigs', help="assembled fasta contigs")
+    group_binning.add_argument(
+        '--metabat2', help="metabat2 to bin contigs", action="store_true", default=False)
+    group_binning.add_argument(
+        '--maxbin2', help="maxbin2 to bin contigs", action="store_true", default=False)
+    group_binning.add_argument(
+        '--groopm2', help="groopm2 to bin contigs", action="store_true", default=False)
+    group_binning.add_argument(
+        '--concoct', help="concoct to bin contigs", action="store_true", default=False)
+    # group_binning.add_argument('--vamb', help="vamb to bin contigs", action="store_true", default=False)
 
     if len(sys.argv) == 1:
         parser.print_help()
@@ -73,18 +80,23 @@ def main(args=None):
 
     # load log config
     logger = modules.getLogger(args.outdir, args.silent)
+    # check raw reads
+    raw_fq_to_qc = args.forward_raw_reads + args.reverse_raw_reads
+    if False in list(map(modules.fileExists, raw_fq_to_qc)):
+        logger.critical("please ensure that input raw reads files exist!")
+        return
 
     outdir = os.path.abspath(args.outdir)
     logger.info("MAPFA start:")
     logging.info(' '.join(sys.argv))
     logger.info("The output directory: %s", outdir)
     ####################################################################
+    ####################################################################
     # read QC
     if args.forward_raw_reads and args.reverse_raw_reads and args.index:
         logger.info("Run reads_QC module:")
         ##############################
         # Pre-QC
-        raw_fq_to_qc = args.forward_raw_reads + args.reverse_raw_reads
         preQC_report_outdir = os.path.join(outdir, 'preQC_report')
         modules.makesurePathExists(preQC_report_outdir)
         modules.pool2runFastqc(
@@ -160,12 +172,18 @@ def main(args=None):
     ####################################################################
     # assembly
     elif args.forward_clean_reads_to_assemble and args.reverse_clean_reads_to_assemble and args.assemblyer:
+        fq_1_qc = args.forward_clean_reads_to_assemble
+        fq_2_qc = args.reverse_clean_reads_to_assemble
+        # check input clean reads files
+        if False in list(map(modules.fileExists, fq_1_qc+fq_2_qc)):
+            logger.critical("please ensure that input clean reads files exist!")
+            return
+
         logger.info("Run assembly module:")
         logger.info("choose %s to assemble clean reads", args.assemblyer)
         # fq_1_qc = [ fq1.replace('fastq', 'qc.fq') for fq1 in args.forward_raw_reads ]
         # fq_2_qc = [ fq2.replace('fastq', 'qc.fq') for fq2 in args.reverse_raw_reads ]
-        fq_1_qc = args.forward_clean_reads_to_assemble
-        fq_2_qc = args.reverse_clean_reads_to_assemble
+
         assembled_path = ''
 
         # Assembling with metaspades
@@ -186,20 +204,23 @@ def main(args=None):
             else:
                 modules.metaspades2assembly(0, str(args.threads), str(
                     args.memory4assemble), metaspades_outdir, metaspades_temp, ' '.join(fq_1_qc), ' '.join(fq_2_qc))
-            ## check the result        
+            # check the result
             if not modules.fileExists(os.path.join(metaspades_outdir, 'scaffolds.fasta')):
-                logger.critical("Something wrong when assembling with metaspades!")
+                logger.critical(
+                    "Something wrong when assembling with metaspades!")
                 return
             else:
-                assembled_path = os.path.join(metaspades_outdir, 'scaffolds.fasta')
+                assembled_path = os.path.join(
+                    metaspades_outdir, 'scaffolds.fasta')
                 try:
                     shutil.rmtree(metaspades_temp)
                 except Exception:
-                    logger.error("There are something wrong when remove metaspades tempdirectory", exc_info=True)
+                    logger.error(
+                        "There are something wrong when remove metaspades tempdirectory", exc_info=True)
                     raise
                 else:
                     logger.info("Clean reads are assembled with metaspades.")
-                
+
         # Assembling with megahit
         elif args.assemblyer == 'megahit':
             megahit_outdir = os.path.join(outdir, 'megahit_out')
@@ -210,22 +231,26 @@ def main(args=None):
             modules.megahit2assembly(str(args.threads), str(
                 args.memory4assemble), megahit_outdir, megahit_temp, ' '.join(fq_1_qc), ' '.join(fq_2_qc))
 
-            ## check the result
+            # check the result
             if not modules.fileExists(os.path.join(megahit_outdir, 'final.contigs.fa')):
-                logger.critical("Something wrong when assembling with megahit!")
+                logger.critical(
+                    "Something wrong when assembling with megahit!")
                 return
             else:
-                assembled_path = os.path.join(megahit_outdir, 'final.contigs.fa')
+                assembled_path = os.path.join(
+                    megahit_outdir, 'final.contigs.fa')
                 try:
                     shutil.rmtree(megahit_temp)
                 except Exception:
-                    logger.error("There are something wrong when remove megahit tempdirectory", exc_info=True)
+                    logger.error(
+                        "There are something wrong when remove megahit tempdirectory", exc_info=True)
                     raise
                 else:
                     logger.info("Clean reads are assembled with megahit.")
 
         else:
-            logger.critical("please choose metaspades or megahit for assembling.")
+            logger.critical(
+                "please choose metaspades or megahit for assembling.")
             return
 
         # FORMAT the result
@@ -233,47 +258,84 @@ def main(args=None):
             modules.rmMetaspadesShortContigs(args.minlength4a, assembled_path)
         elif args.assemblyer == 'megahit':
             modules.fixMegahitContigName(args.minlength4a, assembled_path)
-        
+
         # check the result
         if not modules.fileExists(os.path.join(outdir, 'assembly.fasta')):
             logger.critical("Something wrong when removing short contigs")
             return
         else:
-            logger.info("Assembly result is located in %s", os.path.join(outdir, 'assembly,fasta'))
-        
+            logger.info("Assembly result is located in %s",
+                        os.path.join(outdir, 'assembly,fasta'))
+
         # assembly QC with QUAST
         logger.info("Running assembly QC with quast:")
         quast_outdir = os.path.join(outdir, 'quast_out')
         modules.makesurePathExists(quast_outdir)
-        modules.quast2QC(args.threads, quast_outdir, os.path.join(outdir, 'assembly.fasta'))
+        modules.quast2QC(args.threads, quast_outdir,
+                         os.path.join(outdir, 'assembly.fasta'))
         if not modules.fileExists(os.path.join(quast_outdir, 'report.html')):
             logger.critical("Something wrong when assembly QC with quast!")
             return
         else:
-            shutil.copy(os.path.join(quast_outdir, 'report.html'), os.path.join(outdir, 'assembly_QCreport.html'))
-            logger.info("Assembly QC report is located in %s", os.path.join(outdir, 'assembly_QCreport.html'))
+            shutil.copy(os.path.join(quast_outdir, 'report.html'),
+                        os.path.join(outdir, 'assembly_QCreport.html'))
+            logger.info("Assembly QC report is located in %s",
+                        os.path.join(outdir, 'assembly_QCreport.html'))
 
         logger.info("assembly module running smoothly.")
-
-    elif args.forward_clean_reads_to_binning and args.reverse_clean_reads_to_binning and args.assembled_reads:
+    ####################################################################
+    ####################################################################
+    # binning
+    elif args.forward_clean_reads_to_binning and args.reverse_clean_reads_to_binning and args.assembled_contigs:
         if not (args.metabat2 or args.maxbin2 or args.groopm2 or args.concoct):
-            logger.error("please select at least one binning tool. e.g. --metabat2")
+            logger.error(
+                "please select at least one binning tool. e.g. --metabat2")
             return
-        if args.metabat2 == True:
-            modules.metabat2bin()
-        
 
+        fq_1_4binning = args.forward_clean_reads_to_binning
+        fq_2_4binning = args.reverse_clean_reads_to_binning
+        # check the assembled_reads and input clean reads files
+        if not modules.fileExists(args.assembled_contigs):
+            logger.critical("please ensure that assembled contigs exist!")
+        if False in list(map(modules.fileExists, fq_1_4binning+fq_2_4binning)):
+            logger.critical("please ensure that input clean reads files exist!")
+            return        
         logger.info("Run binning module:")
+        # binning work directory
+        binning_outdir = os.path.join(outdir, 'binning')
+        modules.makesurePathExists(binning_outdir)
+        ## remove exited checkm directory
+        for checkm_dir in list(Path(binning_outdir).glob('*checkm')):
+            shutil.rmtree(str(checkm_dir))
+
+        # align clean reads to assembly for making coverage files
+        ## make the alignment output directory
+        align_outdir = os.path.join(binning_outdir, '')
+
+        # run binning tools
+        ## run metabat2
+        if args.metabat2:
+            if args.minlength4b <= 1500:
+                minlength4metabat = 1500
+            else:
+                minlength4metabat = args.minlength4b
+
+            modules.metabat2bin()
+        ## run maxbin2
+        if args.maxbin2:
+            modules.maxbin2bin()
+        ## run groopm2
+        if args.groopm2:
+            modules.groopm2bin()
+        ## concocct
+        if args.concoct:
+            modules.concoct2bin()
 
     else:
         logger.warning("Please choose a module for MAPFA.")
         return
 
     logger.info("MAPFA end.")
-
-##############################
-# Binning
-##############################
 
 ##############################
 # Binning QC

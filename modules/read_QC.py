@@ -30,7 +30,7 @@ def runFastp(fq_R1, fq_R2, outdir):
     fq_fastp_R1 = fq_R1.replace('.fastq', '.fastp.fq')
     fq_fastp_R2 = fq_R2.replace('.fastq', '.fastp.fq')
     cmd = ' '.join(['fastp', '-i', fq_R1, '-o', str(PurePosixPath(outdir).joinpath(fq_fastp_R1)), '-I', fq_R2, '-O', str(PurePosixPath(outdir).joinpath(fq_fastp_R2)), '--cut_tail', '--length_required=50', '--correction'])
-    subprocess.run(cmd, check=True, shell=True)
+    subprocess.run(cmd, check=True, shell=True)     
 
 
 def rmHostGenome(ref, fq_R1, fq_R2, threads):
