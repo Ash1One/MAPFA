@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 from multiprocessing import Pool
+from pathlib import Path
 
 import yaml
 import modules
@@ -304,13 +305,54 @@ def main(args=None):
         # binning work directory
         binning_outdir = os.path.join(outdir, 'binning')
         modules.makesurePathExists(binning_outdir)
-        ## remove exited checkm directory
-        for checkm_dir in list(Path(binning_outdir).glob('*checkm')):
-            shutil.rmtree(str(checkm_dir))
+        logger.info("Binning outdir locate in %s", binning_outdir)
+
+        ## remove checkm directory if it existed
+        if not list(Path(binning_outdir).glob('*checkm')):
+            logger.warning("checkm results has been existed.")
+            logger.info("Removing former checkm results.")
+            for checkm_dir in list(Path(binning_outdir).glob('*checkm')):
+                shutil.rmtree(str(checkm_dir))
 
         # align clean reads to assembly for making coverage files
         ## make the alignment output directory
-        align_outdir = os.path.join(binning_outdir, '')
+        align_outdir = os.path.join(binning_outdir, 'align_outdir')
+        modules.makesurePathExists(align_outdir)
+        logger.info("align_outdir locate in %s", align_outdir)
+        ### copy assembly file
+        assembly4bin = os.path.join(align_outdir, 'assembly.fa')
+        shutil.copy(args.assembled_contigs,
+                        assembly4bin)
+        logger.info("Copy assembly file to %s", align_outdir)
+        ## index the assembly
+        if not modules.fileExists(os.path.join(align_outdir, 'assembly.fa.bwt')):
+            logger.info("index the assembly...")
+            subprocess.run(' '.join(['bwa', 'index', assembly4bin]), shell=True, check=True)
+            if not modules.fileExists(os.path.join(align_outdir, 'assembly.fa.bwt')):
+                logger.error("Something wrong when index assembly files. Exit.")
+                return
+        else:
+            logger.info("assembly index already existed. So skipping this step.")
+
+        ## alignment (paired end reads)
+        for read in args.forward_clean_reads_to_binning:
+            if read.endswith('_1.fastq') or read.endswith('_1.qc.fq') or read.endswith('_1.fq') or read.endswith('_1.qc.fastq'):
+                if not modules.fileExists(os.path.join(align_outdir, sample_name+'.bam')):
+                    read_1 = read
+                    read_2 = read.replace('_1', '_2')
+                    sample_name = read.split('_')[0]
+                    logger.info("making %s alignment files", sample_name)
+                    subprocess.run(' '.join(['bwa', 'mem', '-t', args.threads, '-v', '1', assembly4bin, read_1, read_2, '>', os.path.join(align_outdir, sample_name+'.sam')]), shell=True, check=True)
+                    
+                    logger.info("sorting %s alignment files", sample_name)
+                    subprocess.run(' '.join(['samtools', 'sort', '-@', args.threads, '-O', 'BAM', '-o', os.path.join(align_outdir, sample_name+'.bam'), os.path.join(align_outdir, sample_name+'.sam')]))
+
+                else:
+                    logger.info("%s bam files already existed. So skipping alignment.")
+
+            else:
+                logger.error("Please input reads files with correct name!")
+                return
 
         # run binning tools
         ## run metabat2
