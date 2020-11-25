@@ -48,7 +48,7 @@ def main(args=None):
     group_assembly.add_argument(
         '-ma', '--memory4assemble', help="memory (gigabyte) for assembling. Default: 30 (GB)", type=int, default=30)
     group_assembly.add_argument(
-        '-la', '--minlength4a', help="keep long contigs over minlength. Default: 500 (bp).", default=500)
+        '-la', '--minlength4a', help="keep long contigs over minlength. Default: 500 (bp).", type=int, default=500)
     group_assembly.add_argument(
         '--assemblyer', help="choose a assemblyer to assemble (metaspades or megahit). Default: megahit.", default='megahit')
     # binning group
@@ -58,9 +58,9 @@ def main(args=None):
     group_binning.add_argument(
         '-rb', '--reverse_clean_reads_to_binning', help="forward fastq clean reads", nargs='*')
     group_binning.add_argument(
-        '-mb', '--memory4binning', help="memory (gigabyte) for binning. Default: 30 (GB).", default=30)
+        '-mb', '--memory4binning', help="memory (gigabyte) for binning. Default: 30 (GB).", type=int, default=30)
     group_binning.add_argument(
-        '-lb', '--minlength4b', help="contigs with minimum length to bin. Default: 1000 (bp).", default=1000)
+        '-lb', '--minlength4b', help="contigs with minimum length to bin. Default: 1000 (bp).", type=int, default=1000)
     group_binning.add_argument(
         '-a', '--assembled_contigs', help="assembled fasta contigs")
     group_binning.add_argument(
@@ -353,16 +353,26 @@ def main(args=None):
             else:
                 logger.error("Please input reads files with correct name!")
                 return
+        
+        try:
+            os.remove(os.path.join(align_outdir, sample_name+'.sam'))
+        except Exception:
+            logger.error("It failed to remove sam files. Something wrong.", exc_info=True)
 
         # run binning tools
         ## run metabat2
         if args.metabat2:
+            logger.info("Running metabat2")
             if args.minlength4b <= 1500:
                 minlength4metabat = 1500
             else:
                 minlength4metabat = args.minlength4b
+            tbam_files = tuple([str(bam) for bam in tuple(Path(align_outdir).glob('*.bam'))])
+            metabat2_bin_outdir = modules.metabat2bin(align_outdir, assembly4bin, minlength4metabat, args.threads, tbam_files)
+            if metabat2_bin_outdir:
+                # checkm
+                pass
 
-            modules.metabat2bin()
         ## run maxbin2
         if args.maxbin2:
             modules.maxbin2bin()
