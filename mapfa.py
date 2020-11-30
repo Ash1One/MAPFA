@@ -181,7 +181,7 @@ def main(args=None):
         # check input clean reads files
         if False in list(map(modules.fileExists, fq_1_qc+fq_2_qc)):
             logger.critical("please ensure that input clean reads files exist!")
-            return
+            parser.error("please ensure that input clean reads files exist!")
 
         logger.info("Run assembly module:")
         logger.info("choose %s to assemble clean reads", args.assemblyer)
@@ -255,7 +255,7 @@ def main(args=None):
         else:
             logger.critical(
                 "please choose metaspades or megahit for assembling.")
-            return
+            parser.error("please choose metaspades or megahit for assembling.")
 
         # FORMAT the result
         if args.assemblyer == 'metaspades':
@@ -294,7 +294,7 @@ def main(args=None):
         if not (args.metabat2 or args.maxbin2 or args.groopm2 or args.concoct):
             logger.error(
                 "please select at least one binning tool. e.g. --metabat2")
-            return
+            parser.error("please select at least one binning tool. e.g. --metabat2")
 
         fq_1_4binning = args.forward_clean_reads_to_binning
         fq_2_4binning = args.reverse_clean_reads_to_binning
@@ -303,7 +303,7 @@ def main(args=None):
             logger.critical("please ensure that assembled contigs exist!")
         if False in list(map(modules.fileExists, fq_1_4binning+fq_2_4binning)):
             logger.critical("please ensure that input clean reads files exist!")
-            return        
+            parser.error("please ensure that input clean reads files exist!")        
         logger.info("Run binning module:")
         # binning work directory
         binning_outdir = os.path.join(outdir, 'binning')
@@ -355,7 +355,7 @@ def main(args=None):
 
             else:
                 logger.error("Please input reads files with correct name!")
-                return
+                parser.error("Please input reads files with correct name!")
         
         try:
             os.remove(os.path.join(align_outdir, sample_name+'.sam'))
@@ -393,7 +393,7 @@ def main(args=None):
 
     else:
         logger.warning("Please choose a module for MAPFA.")
-        return
+        parser.error("Please choose a module for MAPFA.")
 
     logger.info("MAPFA end.")
 
