@@ -30,7 +30,7 @@ def fixMegahitContigName(min_length, assembled_fasta):
                 if int(cut[3].split("=")[1]) < min_length:
                     good = False
                 else:
-                    good = True
+                    good = True 
 
                 name = ">"+cut[0]+"_length_" + \
                     cut[3].split("=")[1]+"_cov_"+cut[2].split("=")[1]
