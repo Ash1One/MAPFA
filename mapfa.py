@@ -386,7 +386,10 @@ def main(args=None):
                 pass
         ## run groopm2
         if args.groopm2:
-            modules.groopm2bin()
+            groopm2_bin_outdir = modules.groopm2bin(align_outdir, assembly4bin, args.threads, tbam_files)
+            if groopm2_bin_outdir:
+                # checkm
+                pass
         ## concocct
         if args.concoct:
             modules.concoct2bin()
