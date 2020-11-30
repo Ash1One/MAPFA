@@ -82,10 +82,13 @@ def main(args=None):
     # load log config
     logger = modules.getLogger(args.outdir, args.silent)
     # check raw reads
+    if not args.forward_raw_reads or not args.reverse_raw_reads:
+        logger.critical("please ensure that input raw reads files exist!")
+        parser.error("please input raw reads files!")
     raw_fq_to_qc = args.forward_raw_reads + args.reverse_raw_reads
     if False in list(map(modules.fileExists, raw_fq_to_qc)):
         logger.critical("please ensure that input raw reads files exist!")
-        return
+        parser.error("please ensure that input raw reads files exist!")
 
     outdir = os.path.abspath(args.outdir)
     logger.info("MAPFA start:")
@@ -359,6 +362,8 @@ def main(args=None):
         except Exception:
             logger.error("It failed to remove sam files. Something wrong.", exc_info=True)
 
+        tbam_files = tuple([str(bam) for bam in tuple(Path(align_outdir).glob('*.bam'))])
+
         # run binning tools
         ## run metabat2
         if args.metabat2:
@@ -367,7 +372,7 @@ def main(args=None):
                 minlength4metabat = 1500
             else:
                 minlength4metabat = args.minlength4b
-            tbam_files = tuple([str(bam) for bam in tuple(Path(align_outdir).glob('*.bam'))])
+            
             metabat2_bin_outdir = modules.metabat2bin(align_outdir, assembly4bin, minlength4metabat, args.threads, tbam_files)
             if metabat2_bin_outdir:
                 # checkm
@@ -375,7 +380,10 @@ def main(args=None):
 
         ## run maxbin2
         if args.maxbin2:
-            modules.maxbin2bin()
+            maxbin2_bin_outdir = modules.maxbin2bin(align_outdir, assembly4bin, args.minlength4b, args.threads, tbam_files)
+            if maxbin2_bin_outdir:
+                # checkm
+                pass
         ## run groopm2
         if args.groopm2:
             modules.groopm2bin()
