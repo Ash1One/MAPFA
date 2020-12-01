@@ -363,6 +363,9 @@ def main(args=None):
             logger.error("It failed to remove sam files. Something wrong.", exc_info=True)
 
         tbam_files = tuple([str(bam) for bam in tuple(Path(align_outdir).glob('*.bam'))])
+        # index the bam files
+        for bam in tbam_files:
+            subprocess.run(' '.join(['samtools', 'index', '-@', str(args.threads), bam]))
 
         # run binning tools
         ## run metabat2
@@ -384,15 +387,24 @@ def main(args=None):
             if maxbin2_bin_outdir:
                 # checkm
                 pass
+            else:
+                print("please check the log file.")
+                return
         ## run groopm2
         if args.groopm2:
             groopm2_bin_outdir = modules.groopm2bin(align_outdir, assembly4bin, args.threads, tbam_files)
             if groopm2_bin_outdir:
                 # checkm
                 pass
+            else:
+                print("please check the log file.")
+                return
         ## concocct
         if args.concoct:
-            modules.concoct2bin()
+            concoct_bin_outdir = modules.concoct2bin(align_outdir, assembly4bin, args.minlength4b, args.threads, tbam_files)
+            if concoct_bin_outdir:
+                # checkm
+                pass
 
     else:
         logger.warning("Please choose a module for MAPFA.")
