@@ -405,7 +405,9 @@ def main(args=None):
             if concoct_bin_outdir:
                 # checkm
                 pass
-
+            else:
+                print("please check the log file")
+                return
     else:
         logger.warning("Please choose a module for MAPFA.")
         parser.error("Please choose a module for MAPFA.")
