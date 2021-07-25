@@ -1,0 +1,43 @@
+rule mapfa:
+    input:
+        target
+
+rule fastqc_rawreads:
+    input:
+        fq_1 = "rawdata/{sample}_1.fastq",
+        fq_2 = "rawdata/{sample}_2.fastq"
+    output:
+        "fastqc_outdir/{sample}.fastqc.gz"
+    params:
+        file_type = "fastq"
+    threads:
+        5
+    shell:
+        "fastqc -o {output} -f {params.file_type} -t {threads} {input.fq_1} {input.fq_2}"
+
+rule fastp:
+    input:
+        fq_1 = "rawdata/{sample}_1.fastq",
+        fq_2 = "rawdata/{sample}_2.fastq"
+    output:
+        fq_1 = "tempdata/{sample}_1.fastq"
+        fq_2 = "tempdata/{sample}_2.fastq"
+        json = "tempdata/{sample}.json"
+        html = "tempdata/{sample}.html"
+    params:
+        pass
+    threads:
+        10
+    shell:
+        "fastp "
+
+rule rm_host_contamination:
+    input:
+        fq_1 = rule.fastp.output.fq_1
+        fq_2 = rule.fastp.output.fq_2
+    output:
+        pass
+    params:
+        pass
+    shell:
+        pass
