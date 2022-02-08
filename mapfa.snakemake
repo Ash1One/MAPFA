@@ -1,43 +1,93 @@
+import os
+import yaml
+
+
+configfile: "config.yaml"
+
+SAMPLES = ['PA2', 'PA4', 'PA5', 'PI2', 'PI3', 'PI5', 'PL1', 'PL3', 'PL5']
+'''
+cur_abs_path = os.path.abspath(__file__)
+config_file = os.path.join(cur_abs_path, 'config.yaml')
+config = yaml.load(open(config_file), Loader=yaml.Loader)
+'''
+
+
 rule mapfa:
     input:
         target
 
-rule fastqc_rawreads:
+rule run_fastp:
     input:
-        fq_1 = "rawdata/{sample}_1.fastq",
-        fq_2 = "rawdata/{sample}_2.fastq"
+        fq_1 = "RawFastq/{sample}_R1.fastq.gz",
+        fq_2 = "RawFastq/{sample}_R2.fastq.gz",
     output:
-        "fastqc_outdir/{sample}.fastqc.gz"
+        fq_1 = "qc/{sample}_1.qc.fastq.gz",
+        fq_2 = "qc/{sample}_2.qc.fastq.gz",
+        json = "qc/{sample}.json",
+        html = "qc/{sample}.html",
     params:
-        file_type = "fastq"
-    threads:
-        5
-    shell:
-        "fastqc -o {output} -f {params.file_type} -t {threads} {input.fq_1} {input.fq_2}"
-
-rule fastp:
-    input:
-        fq_1 = "rawdata/{sample}_1.fastq",
-        fq_2 = "rawdata/{sample}_2.fastq"
-    output:
-        fq_1 = "tempdata/{sample}_1.fastq"
-        fq_2 = "tempdata/{sample}_2.fastq"
-        json = "tempdata/{sample}.json"
-        html = "tempdata/{sample}.html"
-    params:
-        pass
+        "--compression 6 --detect_adapter_for_pe --cut_front --cut_right --cut_window_size 5 --cut_mean_quality 20 --average_qual 15 --length_required 40 --correction"
     threads:
         10
     shell:
-        "fastp "
+        "fastp -i {input.fq_1} -I {input.fq_2} -o {output.fq_1} -O {output.fq_2} {params} -j {output.json} -h {output.html} -w {threads}"
 
-rule rm_host_contamination:
+rule map_to_host:
     input:
-        fq_1 = rule.fastp.output.fq_1
-        fq_2 = rule.fastp.output.fq_2
+        fq_1 = rules.run_fastp.output.fq_1,
+        fq_2 = rules.run_fastq.output.fq_2,
     output:
-        pass
+        sam = "tmp/{sample}.map_to_host.sam",
     params:
-        pass
+        host_ref = config['host_ref_index'],
+    threads:
+        8
     shell:
-        pass
+        "bowtie2 -x {params.host_ref} -1 {input.fq_1} -2 {input.fq_2} -S {wildcards.sample}.sam -p {threads}"
+
+rule host_sam_to_bam:
+    input:
+        rules.map_to_host.output.sam,
+    output:
+        bam = "tmp/{sample}.map_to_host.bam",
+    params:
+        "-bS"
+    threads:
+        8
+    shell:
+        "samtools view {params} {input} > {output.bam} -@ {threads}"
+
+rule get_both_end_unmapped_bam:
+    input:
+        rules.host_sam_to_bam.output.bam,
+    output:
+        bam = "tmp/{sample}.both_end_unmapped.bam",
+    params:
+        "-b -f 12 -F 256"
+    threads:
+        8
+    shell:
+        "samtools view {params} {input} > {output.bam} -@ {threads}"
+
+rule sort_both_end_unmapped_bam:
+    input:
+        rules.get_both_end_unmapped_bam.output.bam,
+    output:
+        bam = "tmp/{sample}.both_end_unmapped.sorted.bam",
+    params:
+        "-n -o"
+    threads:
+        8
+    shell:
+        "samtools sort {params} {output.bam} {input} -@ {threads}"
+
+rule bam_to_fastq:
+    input:
+        rules.sort_both_end_unmapped_bam.output.bam,
+    output:
+        fq_1 = "CleanData/{sample}_1.clean.fastq.gz",
+        fq_2 = "CleanData/{sample}_2.clean.fastq.gz",
+    threads:
+        8
+    shell:
+        "bamToFastq -i {input} -fq {output.fq_1} -fq2 {output.fq_2}"
