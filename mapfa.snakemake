@@ -3,7 +3,8 @@ import yaml
 
 
 configfile: "config.yaml"
-
+OUTDIR = config.get('outdir')
+workdir: OUTDIR
 SAMPLES = ['LiuBai-2', 'LiuBai-4', 'LiuBai-5', 'HuoShou-2', 'HuoShou-3', 'HuoShou-5', 'YueHei-1', 'YueHei-3', 'YueHei-5']
 '''
 cur_abs_path = os.path.abspath(__file__)
