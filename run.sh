@@ -1,6 +1,6 @@
 outdir=$1
 shift 1;
-mkdir -p ${outidr}
+mkdir -p ${outdir}
 
 DIR="$( cd "$( dirname "$0"  )" && pwd  )"
 cluster="bsub -q high -n {threads} -J meta.{wildcards.sample}.{rule} -R \"span[hosts=1]\" -o LOG/{wildcards.sample}/{rule}.out -e {wildcards.sample}/{rule}.err"

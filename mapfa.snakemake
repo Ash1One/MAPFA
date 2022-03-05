@@ -2,7 +2,11 @@ import os
 import yaml
 
 
-configfile: "config.yaml"
+#configfile: os.path.join(os.path.__file__, "config.yaml")
+config_file = '/dssg/home/huangh/git_repo/MAPFA/config.yaml'
+cfg = yaml.load(open(config_file), Loader=yaml.Loader)
+config.update(cfg)
+
 OUTDIR = config.get('outdir')
 workdir: OUTDIR
 SAMPLES = ['LiuBai-2', 'LiuBai-4', 'LiuBai-5', 'HuoShou-2', 'HuoShou-3', 'HuoShou-5', 'YueHei-1', 'YueHei-3', 'YueHei-5']
@@ -15,12 +19,12 @@ config = yaml.load(open(config_file), Loader=yaml.Loader)
 target = []
 target += expand("readsClassification/mpa/{sample}.mpa.txt", sample=SAMPLES)
 target += expand("assembly/{sample}/{sample}.contigs.fa", sample=SAMPLES)
+target += ["readsClassification/mpa/combined.mpa.txt"]
 
 
 rule mapfa:
     input:
-        combined_mpa = "readsClassification/mpa/combined.mpa.txt",
-        target,
+        target
 
 #############################################################
 #1.1 QC
@@ -45,7 +49,7 @@ rule run_fastp:
 rule map_to_host:
     input:
         fq_1 = rules.run_fastp.output.fq_1,
-        fq_2 = rules.run_fastq.output.fq_2,
+        fq_2 = rules.run_fastp.output.fq_2,
     output:
         sam = "tmp/{sample}.map_to_host.sam",
     params:
@@ -107,8 +111,8 @@ rule bam_to_fastq:
 #############################################################
 rule reads_classification:
     input:
-        fq_r1 = rules.bam_to_fastq.output.fq1,
-        fq_r2 = rules.bam_to_fastq.output.fq2,
+        fq_r1 = rules.bam_to_fastq.output.fq_1,
+        fq_r2 = rules.bam_to_fastq.output.fq_2,
     output:
         report = "readsClassification/{sample}.kraken.report.txt",
         classified_out = "readsClassification/{sample}.classified.fastq",
@@ -119,7 +123,7 @@ rule reads_classification:
     threads:
         10
     shell:
-        "kraken2 --db {params.kraken_DB} --threads {threads} {kraken_para} --report {output.report} --output {output.output} --classified-out {output.classified_out} --paired {input.fq_r1} {input.fq_r2}"
+        "kraken2 --db {params.kraken_DB} --threads {threads} {params.kraken_para} --report {output.report} --output {output.output} --classified-out {output.classified_out} --paired {input.fq_r1} {input.fq_r2}"
 
 rule bracken_estimate:
     input:
@@ -167,8 +171,8 @@ rule combine_mpa:
 #############################################################
 rule megahit_assemble:
     input:
-        fq_r1 = rules.bam_to_fastq.output.fq1,
-        fq_r2 = rules.bam_to_fastq.output.fq2,
+        fq_r1 = rules.bam_to_fastq.output.fq_1,
+        fq_r2 = rules.bam_to_fastq.output.fq_2,
     output:
         fa = "assembly/{sample}/{sample}.contigs.fa",
     params:
