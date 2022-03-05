@@ -16,10 +16,14 @@ rule mapfa:
     input:
         target
 
+#############################################################
+#1.1 QC
+#############################################################
+
 rule run_fastp:
     input:
-        fq_1 = "RawFastq/{sample}_R1.fastq.gz",
-        fq_2 = "RawFastq/{sample}_R2.fastq.gz",
+        fq_1 = "rawFastq/{sample}_R1.fastq.gz",
+        fq_2 = "rawFastq/{sample}_R2.fastq.gz",
     output:
         fq_1 = "qc/{sample}_1.qc.fastq.gz",
         fq_2 = "qc/{sample}_2.qc.fastq.gz",
@@ -85,9 +89,31 @@ rule bam_to_fastq:
     input:
         rules.sort_both_end_unmapped_bam.output.bam,
     output:
-        fq_1 = "CleanData/{sample}_1.clean.fastq.gz",
-        fq_2 = "CleanData/{sample}_2.clean.fastq.gz",
+        fq_1 = "cleanData/{sample}_1.clean.fastq.gz",
+        fq_2 = "cleanData/{sample}_2.clean.fastq.gz",
     threads:
         8
     shell:
         "bamToFastq -i {input} -fq {output.fq_1} -fq2 {output.fq_2}"
+
+#############################################################
+#1.2 classify cleanData using kraken2
+#############################################################
+
+
+#############################################################
+#2. assembly
+#############################################################
+
+
+#############################################################
+#2.1 predict ORFs and get genes abundance, difference genes
+#############################################################
+
+#############################################################
+#2.2 diff genes functional annotation
+#############################################################
+
+#############################################################
+#2.3 lactobacillus contig genes functional annotation
+#############################################################
