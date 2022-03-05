@@ -1,1 +1,3 @@
-host_ref_index: /home/huanghao/pig9/Data/ref.fa
+host_ref_index: /dssg/home/huangh/tmp/meta-pipe-test/hostSeqIndex/Sscrofa11
+standardKraken: /dssg/home/huangh/DB/kraken2-20220227
+kraken_tools: /dssg/home/huangh/git_repo/KrakenTools

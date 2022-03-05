@@ -4,17 +4,22 @@ import yaml
 
 configfile: "config.yaml"
 
-SAMPLES = ['PA2', 'PA4', 'PA5', 'PI2', 'PI3', 'PI5', 'PL1', 'PL3', 'PL5']
+SAMPLES = ['LiuBai-2', 'LiuBai-4', 'LiuBai-5', 'HuoShou-2', 'HuoShou-3', 'HuoShou-5', 'YueHei-1', 'YueHei-3', 'YueHei-5']
 '''
 cur_abs_path = os.path.abspath(__file__)
 config_file = os.path.join(cur_abs_path, 'config.yaml')
 config = yaml.load(open(config_file), Loader=yaml.Loader)
 '''
 
+target = []
+target += expand("readsClassification/mpa/{sample}.mpa.txt", sample=SAMPLES)
+target += expand("assembly/{sample}/{sample}.contigs.fa", sample=SAMPLES)
+
 
 rule mapfa:
     input:
-        target
+        combined_mpa = "readsClassification/mpa/combined.mpa.txt",
+        target,
 
 #############################################################
 #1.1 QC
@@ -22,8 +27,8 @@ rule mapfa:
 
 rule run_fastp:
     input:
-        fq_1 = "rawFastq/{sample}_R1.fastq.gz",
-        fq_2 = "rawFastq/{sample}_R2.fastq.gz",
+        fq_1 = "rawFastq/{sample}_1.fastq.gz",
+        fq_2 = "rawFastq/{sample}_2.fastq.gz",
     output:
         fq_1 = "qc/{sample}_1.qc.fastq.gz",
         fq_2 = "qc/{sample}_2.qc.fastq.gz",
@@ -92,19 +97,88 @@ rule bam_to_fastq:
         fq_1 = "cleanData/{sample}_1.clean.fastq.gz",
         fq_2 = "cleanData/{sample}_2.clean.fastq.gz",
     threads:
-        8
+        2
     shell:
         "bamToFastq -i {input} -fq {output.fq_1} -fq2 {output.fq_2}"
 
 #############################################################
 #1.2 classify cleanData using kraken2
 #############################################################
+rule reads_classification:
+    input:
+        fq_r1 = rules.bam_to_fastq.output.fq1,
+        fq_r2 = rules.bam_to_fastq.output.fq2,
+    output:
+        report = "readsClassification/{sample}.kraken.report.txt",
+        classified_out = "readsClassification/{sample}.classified.fastq",
+        output = "readsClassification/{sample}.kraken.output.txt",
+    params:
+        kraken_DB = config['standardKraken'],
+        kraken_para = "--gzip-compressed --report-zero-counts --use-names",
+    threads:
+        10
+    shell:
+        "kraken2 --db {params.kraken_DB} --threads {threads} {kraken_para} --report {output.report} --output {output.output} --classified-out {output.classified_out} --paired {input.fq_r1} {input.fq_r2}"
 
+rule bracken_estimate:
+    input:
+        kraken_report = rules.reads_classification.output.report,
+    output:
+        output_filename = "{sample}",
+        report = "readsClassification/bracken/{sample}.bracken.report.txt",
+    params:
+        kraken_DB = config['standardKraken'],
+        read_len = 100,
+        level = 'S',
+        threshold = 0,
+    threads:
+        2
+    shell:
+        "bracken -d {params.kraken_DB} -i {input} -o {output.output_filename} -w {output.bracken_report} -r {params.read_len} -l {params.level} -t {params.threshold}"
+
+rule report_to_mpa:
+    input:
+        bracken_report = rules.bracken_estimate.output.report,
+    output:
+        mpa_txt = "readsClassification/mpa/{sample}.mpa.txt",
+    params:
+        prog = os.path.join(config['kraken_tools'], 'kreport2mpa.py')
+    threads:
+        1
+    shell:
+        "python {params.prog} -r {input.bracken_report} -o {output.mpa_txt} --display-header --percentages"
+
+rule combine_mpa:
+    input:
+        mpa_list = expand("readsClassification/mpa/{sample_need}.mpa.txt", sample_need=SAMPLES),
+    output:
+        combined_mpa = "readsClassification/mpa/combined.mpa.txt",
+    params:
+        prog = os.path.join(config['kraken_tools'], 'combine_mpa.py')
+    threads:
+        1
+    shell:
+        "python {params.prog} -i {input.mpa_list} -o {output.combined_mpa}"
+    
 
 #############################################################
 #2. assembly
 #############################################################
-
+rule megahit_assemble:
+    input:
+        fq_r1 = rules.bam_to_fastq.output.fq1,
+        fq_r2 = rules.bam_to_fastq.output.fq2,
+    output:
+        fa = "assembly/{sample}/{sample}.contigs.fa",
+    params:
+        out_prefix = "{sample}",
+        outdir = "assembly/{sample}",
+        other_params = "--presets meta-sensitive"
+    threads:
+        34
+    shell:
+        "megahit -t {threads} -1 {input.fq_r1} -2 {input.fq_r2} {params.other_params} --out-prefix {params.out_prefix} --out-dir {params.outdir}"
+    
 
 #############################################################
 #2.1 predict ORFs and get genes abundance, difference genes
